@@ -166,9 +166,12 @@ type private DirectoryHandlingState private (configuration, database, profile, t
 
 /// Computes the SHA1 hash of the given file info and returns it.
 let private computeHash (fileInfo : FileInfo) = async {
-    use fileStream = fileInfo.OpenRead ()
-    use algorithm = SHA1.Create ()    
-    return! algorithm.ComputeHashAsync fileStream |> Async.AwaitTask
+    try use fileStream = fileInfo.OpenRead ()
+        use algorithm = SHA1.Create ()    
+        return! algorithm.ComputeHashAsync fileStream |> Async.AwaitTask |> Async.Map ValueSome
+    with :? FileNotFoundException ->
+        // The file no longer exists, no hash could be computed.
+        return ValueNone
 }
 
 
@@ -278,18 +281,21 @@ let private getFileInfosToHash (state : DirectoryHandlingState) = asyncSeq {
         state.RemoveRootParentPathFrom state.DirectoryInfo.FullName
     )
     for fileInfo in state.FileInfos do
-        match! state.FileEntryNameMap |> Async.Map (Map.tryFind fileInfo.Name) with
-        | Some { Length = length } when length = fileInfo.Length ->
-            // The file in its current state is stored.
+        try match! state.FileEntryNameMap |> Async.Map (Map.tryFind fileInfo.Name) with
+            | Some { Length = length } when length = fileInfo.Length ->
+                // The file in its current state is stored.
+                do ()
+            | Some { Id = id } ->
+                // The file is stored, but it is no longer current.
+                // Get rid of the old entry and rehash it.
+                do! state.Database.RemoveFile id
+                yield struct (state, fileInfo)
+            | None ->
+                // The file has not been stored yet.
+                yield struct (state, fileInfo)
+        with :? FileNotFoundException ->
+            // The length of a no longer existsing file was accessed.
             do ()
-        | Some { Id = id } ->
-            // The file is stored, but it is no longer current.
-            // Get rid of the old entry and rehash it.
-            do! state.Database.RemoveFile id
-            yield struct (state, fileInfo)
-        | None ->
-            // The file has not been stored yet.
-            yield struct (state, fileInfo)
 }
 
 
@@ -347,19 +353,22 @@ let private handleRootDirectories configuration database profile = asyncSeq {
 
 /// Hashes the given file info and stores it into the database.
 let private hashAndStoreFileInfo struct (state : DirectoryHandlingState, fileInfo : FileInfo) = async {
-    do logger.Information (
-        "Handling file {path}",
-        state.RemoveRootParentPathFrom fileInfo.FullName
-    )
-    let! hash = computeHash fileInfo
-    let fileEntry = {
-        Id          = 0
-        DirectoryId = state.DirectoryEntry.Id
-        Name        = fileInfo.Name
-        Length      = fileInfo.Length
-        Hash        = hash
-    }
-    do! state.Database.AddFile fileEntry |> Async.Ignore
+    if fileInfo.Exists then
+        do logger.Information (
+            "Handling file {path}",
+            state.RemoveRootParentPathFrom fileInfo.FullName
+        )
+    match! computeHash fileInfo with
+    | ValueSome hash ->
+        let fileEntry = {
+            Id          = 0
+            DirectoryId = state.DirectoryEntry.Id
+            Name        = fileInfo.Name
+            Length      = fileInfo.Length
+            Hash        = hash
+        }
+        do! state.Database.AddFile fileEntry |> Async.Ignore
+    | ValueNone -> do ()
 }
 
 

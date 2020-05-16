@@ -208,10 +208,12 @@ let private generateModelForFileEntries duplicateFileEntryMap directoryPath =
     >> Option.map (fun duplicateFileModels ->
         /// A set of all the file names in the given directory.
         let allNames =
-            directoryPath
-            |> Directory.EnumerateFiles
-            |> Seq.map Path.GetFileName
-            |> Set.ofSeq
+            try directoryPath
+                |> Directory.EnumerateFiles
+                |> Seq.map Path.GetFileName
+                |> Set.ofSeq
+            with :? DirectoryNotFoundException ->
+                Set.empty
         /// A set of all duplicate file names in the given directory.
         let duplicateNames =
             duplicateFileModels
