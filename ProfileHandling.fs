@@ -214,6 +214,23 @@ let private removeTrashFromDirectory (state : DirectoryHandlingState) = async {
 }
 
 
+/// Checks if any files in the currently handled directory are completely
+/// empty, and if they are, deletes them.
+let private removeEmptyFilesFromDirectory (state : DirectoryHandlingState) = async {
+    do logger.Debug (
+        "Removing empty files from directory {path}",
+        state.RemoveRootParentPathFrom state.DirectoryInfo.FullName
+    )
+    for fileInfo in state.FileInfos do
+        if fileInfo.Length = 0L then
+            do logger.Information (
+                "Removing empty file at {path}",
+                state.RemoveRootParentPathFrom fileInfo.FullName
+            )
+            do fileInfo.Delete ()
+}
+
+
 /// Checks if there are file entries in the database for the currently handled
 /// directory that no longer exist on disk. Removes them.
 let private cleanupDatabaseFileEntries (state : DirectoryHandlingState) = async {
@@ -278,11 +295,11 @@ let private getFileInfosToHash (state : DirectoryHandlingState) = asyncSeq {
 
 /// Handles the directory represented by the given state and returns all file
 /// infos that require hashing.
-/// If the executing profile has trash removal enabled, first trash files will
-/// be checked for and removed. Then stale file and subdirectory entries will
-/// be removed from the database, then returns all files of the current
-/// directory that need to be hashed and finally returns all files that need
-/// to be hashed of the subdirectories as well.
+/// If the executing profile has trash removal or empty file removal enabled,
+/// first trash and/or empty files will be checked for and removed. Then stale
+/// file and subdirectory entries will be removed from the database, then
+/// returns all files of the current directory that need to be hashed and finally
+/// returns all files that need to be hashed of the subdirectories as well.
 let rec private handleDirectory (state : DirectoryHandlingState) = asyncSeq {
     do logger.Information (
         "Handling directory {path}",
@@ -290,6 +307,8 @@ let rec private handleDirectory (state : DirectoryHandlingState) = asyncSeq {
     )
     if state.Profile.RemoveTrash then
         do! removeTrashFromDirectory state
+    if state.Profile.RemoveEmptyFiles then
+        do! removeEmptyFilesFromDirectory state
     do! cleanupDatabaseFileEntries state
     do! cleanupDatabaseDirectoryEntries state
     yield! getFileInfosToHash state
@@ -300,9 +319,9 @@ let rec private handleDirectory (state : DirectoryHandlingState) = asyncSeq {
 }
 
 
-/// Handles all root directories in the given profile. Performs trash removal
-/// if enabled and stale database entry cleanup and returns all files from all
-/// subdirectories that require hashing into the database.
+/// Handles all root directories in the given profile. Performs trash and empty
+/// file removal if enabled and stale database entry cleanup and returns all
+/// files from all subdirectories that require hashing into the database.
 let private handleRootDirectories configuration database profile = asyncSeq {
     do logger.Information "Handling all root directories of the profile"
     for rootDirectoryName in profile.RootDirectories do
@@ -345,7 +364,7 @@ let private hashAndStoreFileInfo struct (state : DirectoryHandlingState, fileInf
 
 
 /// Handles all root directories as specified in the given profile,
-/// this means removing trash files if enabled, removing stale
+/// this means removing trash and empty files if enabled, removing stale
 /// database entries and hashing new files into the database with
 /// the configured degree of parallelism.
 let handleProfile configuration database profile =

@@ -26,7 +26,8 @@ a configuration example looks like this:
                 "DirectoryToProcess1",
                 "DirectoryToProcess2"
             ],
-            "removeTrash": true
+            "removeTrash": true,
+            "removeEmptyFiles": true
         }
     }
 }
@@ -55,6 +56,8 @@ The configuration options are:
     the `rootDirectoryParentPath` setting.
   * **removeTrash:** Indicates whether to remove files matching the trash regex as part of executing
     this profile.
+  * **removeEmptyFiles:** Indicates whether to remove files that are completely empty as part of
+    executing this profile.
 
 To run the program, execute:
 

@@ -45,7 +45,8 @@
                 "type": "object",
                 "required": [
                     "rootDirectories",
-                    "removeTrash"
+                    "removeTrash",
+                    "removeEmptyFiles"
                 ],
                 "additionalProperties": false,
                 "properties": {
@@ -57,6 +58,10 @@
                     "removeTrash": {
                         "type": "boolean",
                         "description": "Remove files matching the TrashRegex from the directories?"
+                    },
+                    "removeEmptyFiles": {
+                        "type": "boolean",
+                        "description": "Remove files that are completely empty?"
                     }
                 }
             }

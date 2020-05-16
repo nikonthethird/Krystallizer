@@ -25,6 +25,8 @@ type [<Struct>] Profile = {
     RootDirectories : string list
     /// Specifies whether this profile performs trash file removal.
     RemoveTrash : bool
+    /// Specifies whether this profile removes completely empty files.
+    RemoveEmptyFiles : bool
 }
 
 
