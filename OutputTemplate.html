@@ -1,6 +1,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8"/>
+    <title>'DOCUMENT_TITLE'</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/themes/base/jquery-ui.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/themes/base/theme.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery.fancytree/2.35.0/skin-win8/ui.fancytree.min.css">
@@ -39,10 +40,10 @@
             // Add a vertical splitter.
             Split(['#mainTreeContainer', '#contentContainer']);
 
-            // Initialize the main directory tree. The source referencing window will
+            // Initialize the main directory tree. The DOCUMENT_DATA source will
             // be replaced by the actual JSON data in OutputGeneration.fs.
             $('#mainTree').fancytree({
-                source: window.duplicateData,
+                source: 'DOCUMENT_DATA',
                 clickFolderMode: 4, // Activate on click and expand on double-click.
                 selectMode: 1, // Single.
                 toggleEffect: false, // No animations.
@@ -84,7 +85,7 @@
             $('#mainTree').on('fancytreeactivate', (event, data) => {
                 $('#directoryTitle').text(`Directory ${getNodePath(data.node)}`);
                 if (data.node.data.files === null) {
-                    $('#directoryFileInfo').text('This directory is clean.');
+                    $('#directoryFileInfo').text(`This directory is clean but contains ${data.node.children.length} subdirectories with duplicates.`);
                     $('#fileTree').hide();
                 } else {
                     const { duplicate, nonDuplicateNames } = data.node.data.files;

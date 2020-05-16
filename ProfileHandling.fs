@@ -302,7 +302,7 @@ let private getFileInfosToHash (state : DirectoryHandlingState) = asyncSeq {
 /// returns all files that need to be hashed of the subdirectories as well.
 let rec private handleDirectory (state : DirectoryHandlingState) = asyncSeq {
     do logger.Information (
-        "Handling directory {path}",
+        "Handling path {path}",
         state.RemoveRootParentPathFrom state.DirectoryInfo.FullName
     )
     if state.Profile.RemoveTrash then
@@ -348,7 +348,7 @@ let private handleRootDirectories configuration database profile = asyncSeq {
 /// Hashes the given file info and stores it into the database.
 let private hashAndStoreFileInfo struct (state : DirectoryHandlingState, fileInfo : FileInfo) = async {
     do logger.Information (
-        "Computing and storing hash for {path}",
+        "Handling file {path}",
         state.RemoveRootParentPathFrom fileInfo.FullName
     )
     let! hash = computeHash fileInfo
