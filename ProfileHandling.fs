@@ -294,7 +294,7 @@ let private getFileInfosToHash (state : DirectoryHandlingState) = asyncSeq {
                 // The file has not been stored yet.
                 yield struct (state, fileInfo)
         with :? FileNotFoundException ->
-            // The length of a no longer existsing file was accessed.
+            // The length of a no longer existing file was accessed.
             do ()
 }
 
