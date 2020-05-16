@@ -1,0 +1,65 @@
+{
+    "$schema": "http://json-schema.org/schema#",
+    "$id": "http://nikon.the.third/krystallizer",
+    "required": [
+        "$schema",
+        "connectionString",
+        "rootDirectoryParentPath",
+        "duplicatesFilePath",
+        "trashRegex",
+        "degreeOfParallelism",
+        "profiles"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "$schema": {
+            "type": "string"
+        },
+        "connectionString": {
+            "type": "string",
+            "description": "The connection string to the Postgres database."
+        },
+        "rootDirectoryParentPath": {
+            "type": "string",
+            "description": "The path relative from the executing assembly to the parent of all root directories."
+        },
+        "duplicatesFilePath": {
+            "type": "string",
+            "description": "The path relative from the executing assembly to the location where the duplicates file should be generated."
+        },
+        "trashRegex": {
+            "type": "string",
+            "description": "The regex to determine if a file name is a trash file."
+        },
+        "degreeOfParallelism": {
+            "type": "integer",
+            "description": "The number of hash computations to perform concurrently."
+        },
+        "profiles": {
+            "type": "object",
+            "description": "Contains execution profiles that can be passed as command line arguments.",
+            "required": [
+                "default"
+            ],
+            "additionalProperties": {
+                "type": "object",
+                "required": [
+                    "rootDirectories",
+                    "removeTrash"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "rootDirectories": {
+                        "type": "array",
+                        "description": "Lists all root directories to process for this profile.",
+                        "items": { "type": "string" }
+                    },
+                    "removeTrash": {
+                        "type": "boolean",
+                        "description": "Remove files matching the TrashRegex from the directories?"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,134 @@
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/themes/base/jquery-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/themes/base/theme.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery.fancytree/2.35.0/skin-win8/ui.fancytree.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.fancytree/2.35.0/jquery.fancytree-all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.5.11/split.min.js"></script>
+    <style type="text/css">
+        /* Set the default font to something nice. */
+        * {
+            font-family: 'Ubuntu', 'Calibri', 'sans-serif';
+        }
+
+        /* Class added on a directory model to indicate it contains duplicates. */
+        .contains-duplicates {
+            font-weight: bold;
+        }
+
+        /* Class added to fancytree folders that actually represent files. */
+        .custom-file-icon, .custom-file-icon:hover {
+            background-position: -16px 0px !important;
+        }
+
+        /* Class required for the vertical splitter. */
+        .split, .gutter.gutter-horizontal {
+            float: left;
+        }
+
+        /* Class required for the vertical splitter. */
+        .gutter.gutter-horizontal {
+            cursor: ew-resize;
+        }
+    </style>
+    <script type="text/javascript">
+        $(() => {
+            // Add a vertical splitter.
+            Split(['#mainTreeContainer', '#contentContainer']);
+
+            // Initialize the main directory tree. The source referencing window will
+            // be replaced by the actual JSON data in OutputGeneration.fs.
+            $('#mainTree').fancytree({
+                source: window.duplicateData,
+                clickFolderMode: 4, // Activate on click and expand on double-click.
+                selectMode: 1, // Single.
+                toggleEffect: false, // No animations.
+            });
+
+            // Initialize the file view. The source is set when the user clicks on
+            // a directory in the main directory tree.
+            $('#fileTree').fancytree({
+                source: [],
+                clickFolderMode: 4, // Activate on click and expand on double-click.
+                selectMode: 1, // Single.
+                toggleEffect: false, // No animations.
+            })
+
+            // Returns the directory path to the given tree node.
+            const getNodePath = node => node.parent === null ? '' : `${getNodePath(node.parent)}/${node.title}`;
+
+            // Iterate over all duplicate files in the given node and all subnodes
+            // and return the file ids and their directory and path information.
+            const iterateOverDuplicateFiles = function* (node) {
+                for (duplicateFile of node.data?.files?.duplicate || []) {
+                    yield [
+                        duplicateFile.id, {
+                            directoryId: duplicateFile.directoryId,
+                            filePath: `${getNodePath(node)}/${duplicateFile.name}`,
+                        },
+                    ];
+                }
+                for (child of node.children || []) {
+                    yield* iterateOverDuplicateFiles(child);
+                }
+            }
+
+            // Map containing all duplicate files and their directory and path information.
+            const duplicateFileMap = new Map(iterateOverDuplicateFiles($.ui.fancytree.getTree('#mainTree').rootNode));
+
+            // When the user clicks on a new directory in the main tree, show its information.
+            $('#mainTree').on('fancytreeactivate', (event, data) => {
+                $('#directoryTitle').text(`Directory ${getNodePath(data.node)}`);
+                if (data.node.data.files === null) {
+                    $('#directoryFileInfo').text('This directory is clean.');
+                    $('#fileTree').hide();
+                } else {
+                    const { duplicate, nonDuplicateNames } = data.node.data.files;
+                    $('#directoryFileInfo').text(`This directory contains ${duplicate.length} duplicates and ${nonDuplicateNames.length} non-duplicates.`);
+                    const newFileTreeSource = [{
+                        key: ':duplicate:',
+                        title: 'Duplicate Files',
+                        folder: true,
+                        children: duplicate.map(({ id, name, duplicateToIds }) => ({
+                            key: id,
+                            title: name,
+                            folder: true,
+                            icon: 'fancytree-icon custom-file-icon', // Show a file icon.
+                            children: duplicateToIds.map(duplicateToId => ({
+                                key: duplicateToId,
+                                title: duplicateFileMap.get(duplicateToId).filePath,
+                            })),
+                        })),
+                    }, {
+                        key: ':nonduplciate:',
+                        title: 'Non Duplicate Files',
+                        folder: true,
+                        children: nonDuplicateNames.map(name => ({
+                            key: name,
+                            title: name,
+                        })),
+                    }];
+                    $.ui.fancytree.getTree('#fileTree').reload(newFileTreeSource);
+                    $('#fileTree').show();
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+    <div style="display: flex; flex-wrap: nowrap;">
+        <div id="mainTreeContainer">
+            <h2 style="margin-top: 0;">Duplicate Directory Tree</h2>
+            <div id="mainTree"></div>
+        </div>
+        <div id="contentContainer">
+            <h2 id="directoryTitle" style="margin-top: 0;">No folder selected</h2>
+            <div id="directoryFileInfo"></div>
+            <div id="fileTree" style="display:none; margin-top: 1em;"></div>
+        </div>
+    </div>
+</body>
+</html>
