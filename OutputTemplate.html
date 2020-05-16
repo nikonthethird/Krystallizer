@@ -67,7 +67,8 @@
                     yield [
                         duplicateFile.id, {
                             directoryId: duplicateFile.directoryId,
-                            filePath: `${getNodePath(node)}/${duplicateFile.name}`,
+                            directoryPath: getNodePath(node),
+                            fileName: duplicateFile.name,
                         },
                     ];
                 }
@@ -89,25 +90,45 @@
                     const { duplicate, nonDuplicateNames } = data.node.data.files;
                     $('#directoryFileInfo').text(`This directory contains ${duplicate.length} duplicates and ${nonDuplicateNames.length} non-duplicates.`);
                     const newFileTreeSource = [{
-                        key: ':duplicate:',
+                        key: ':duplicatedirectories:',
+                        title: 'Directories Containing Duplicates',
+                        folder: true,
+                        children: Array.from(
+                            duplicate.reduce((directoryMap, { duplicateToIds }) => {
+                                for (duplicateToId of duplicateToIds) {
+                                    const { directoryId, directoryPath } = duplicateFileMap.get(duplicateToId);
+                                    if (!directoryMap.has(directoryId)) {
+                                        directoryMap.set(directoryId, {
+                                            directoryPath: directoryPath,
+                                            duplicateFileCount: 0,
+                                        });
+                                    }
+                                    directoryMap.get(directoryId).duplicateFileCount++;
+                                }
+                                return directoryMap;
+                            }, new Map()).values()
+                        ).map(({ directoryPath, duplicateFileCount }) => ({
+                            title: `${directoryPath} (${duplicateFileCount} duplicates)`,
+                            folder: true,
+                        })),
+                    }, {
+                        key: ':duplicatefiles:',
                         title: 'Duplicate Files',
                         folder: true,
                         children: duplicate.map(({ id, name, duplicateToIds }) => ({
-                            key: id,
                             title: name,
                             folder: true,
                             icon: 'fancytree-icon custom-file-icon', // Show a file icon.
                             children: duplicateToIds.map(duplicateToId => ({
                                 key: duplicateToId,
-                                title: duplicateFileMap.get(duplicateToId).filePath,
+                                title: `${duplicateFileMap.get(duplicateToId).directoryPath}/${duplicateFileMap.get(duplicateToId).fileName}`,
                             })),
                         })),
                     }, {
-                        key: ':nonduplciate:',
+                        key: ':nonduplicatefiles:',
                         title: 'Non Duplicate Files',
                         folder: true,
                         children: nonDuplicateNames.map(name => ({
-                            key: name,
                             title: name,
                         })),
                     }];
