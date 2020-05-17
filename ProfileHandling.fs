@@ -42,14 +42,6 @@ type private DirectoryHandlingState private (configuration, database, profile, t
         |> Set.ofSeq
     )
 
-    /// Set of all the file names of the handled DirectoryInfo that is
-    /// only computed when required.
-    let fileInfoNameSet = lazy (
-        fileInfos.Value
-        |> Seq.map (fun fileInfo -> fileInfo.Name)
-        |> Set.ofSeq 
-    )
-
     /// Cache for subdirectory entries of the handled DirectoryEntry that
     /// is filled when they are fetched from the database.
     let mutable subdirectoryEntryCache = ValueNone
@@ -97,9 +89,13 @@ type private DirectoryHandlingState private (configuration, database, profile, t
     /// currently being handled.
     member _.SubdirectoryInfoNameSet = subdirectoryInfoNameSet.Value
 
-    /// A lazily computed set of all the file names of the directory
-    /// currently being handled.
-    member _.FileInfoNameSet = fileInfoNameSet.Value
+    /// A set of all the file names of the directory currently being handled.
+    /// Only existing file info names are returned.
+    member _.FileInfoNameSet =
+        fileInfos.Value
+        |> Seq.filter (fun fileInfo -> fileInfo.Exists)
+        |> Seq.map (fun fileInfo -> fileInfo.Name)
+        |> Set.ofSeq 
 
     /// Creates a handler for the given directory info and directory entry
     /// based on the current configuration.
