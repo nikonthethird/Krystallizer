@@ -7,6 +7,7 @@ module NikonTheThird.Krystallizer.DuplicateHandling
 open FSharp.Control
 open NikonTheThird.Krystallizer.Configuration
 open NikonTheThird.Krystallizer.Database
+open System
 open System.IO
 
 
@@ -44,6 +45,8 @@ type [<Struct>] DirectoryModel = {
     Folder : bool
     /// Additional CSS classes for the folder node:
     /// * contains-duplicates when this directory contains duplicate files.
+    /// * is-duplicate-tree when this directory and all subdirectories contain
+    ///   only duplicate files.
     ExtraClasses : string
 }
 
@@ -226,6 +229,24 @@ let private generateModelForFileEntries duplicateFileEntryMap directoryPath =
     )
 
 
+/// Gets extra CSS classes for a fancytree directory node.
+let private getExtraClassesForDirectoryNode children files =
+    let areChildrenDuplicateTrees =
+        List.fold (fun isDuplicateTree { ExtraClasses = extraClasses } ->
+            isDuplicateTree && extraClasses.Contains "is-duplicate-tree"
+        ) true children
+    String.Join (" ", seq {
+        match files with
+        | Some { NonDuplicateNames = nonDuplicateNames } ->
+            "contains-duplicate-files"
+            if Set.isEmpty nonDuplicateNames && areChildrenDuplicateTrees then
+                "is-duplicate-tree"
+        | None ->
+            if areChildrenDuplicateTrees then
+                "is-duplicate-tree"
+    })
+
+
 /// Constructs a directory model tree for each of the given directory nodes.
 /// Each directory model will contain a duplicate file model only if it
 /// actually contains duplicate files, otherwise it will be none.
@@ -242,14 +263,15 @@ let rec private generateModelForSubdirectoryNodes duplicateFileEntryMap director
 /// The directory model will contain a duplicate file model only if it
 /// actually contains duplicate files, otherwise it will be none.
 and private generateModelForDirectoryNode duplicateFileEntryMap directoryNode directoryPath =
+    let children = directoryNode.SubdirectoryNodes |> generateModelForSubdirectoryNodes duplicateFileEntryMap directoryPath
     let files = directoryNode.DuplicateFileEntries |> generateModelForFileEntries duplicateFileEntryMap directoryPath
     {
         Key          = directoryNode.DirectoryEntry.Id
         Title        = directoryNode.DirectoryEntry.Name
-        Children     = directoryNode.SubdirectoryNodes |> generateModelForSubdirectoryNodes duplicateFileEntryMap directoryPath
+        Children     = children
         Files        = files
         Folder       = true
-        ExtraClasses = if Option.isSome files then "contains-duplicates" else ""
+        ExtraClasses = getExtraClassesForDirectoryNode children files
     }
 
 

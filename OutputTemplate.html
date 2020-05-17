@@ -9,15 +9,22 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.fancytree/2.35.0/jquery.fancytree-all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.5.11/split.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/g/filesaver.js"></script>
     <style type="text/css">
         /* Set the default font to something nice. */
         * {
             font-family: 'Ubuntu', 'Calibri', 'sans-serif';
         }
 
-        /* Class added on a directory model to indicate it contains duplicates. */
-        .contains-duplicates {
+        /* Class added on a directory model to indicate it contains duplicate files. */
+        .contains-duplicate-files .fancytree-title {
             font-weight: bold;
+        }
+
+        /* Class added on a directory model to indicate that itself and everything
+           below it is a duplicate */
+        .is-duplicate-tree .fancytree-title {
+            text-decoration: underline dotted;
         }
 
         /* Class added to fancytree folders that actually represent files. */
@@ -36,6 +43,65 @@
         }
     </style>
     <script type="text/javascript">
+        // Template for the delete file script created by one of the buttons.
+        const cleanupDirectoryScriptTemplate = `
+            #! /usr/bin/env -S dotnet fsi
+            open System
+            open System.IO
+            open System.Text.Json
+
+            let directoryInfo = DirectoryInfo __SOURCE_DIRECTORY__
+
+            let deleteFile = Option.iter (fun (fileInfo : FileInfo) ->
+                try fileInfo.Delete ()
+                with ex -> printfn "Could not delete file %s\\n%O" fileInfo.Name ex
+            )
+
+            if directoryInfo.Name <> "directoryInfoName" then
+                printfn "This file removal script was generated for a different directory."
+            else
+                let fileInfoMap =
+                    directoryInfo.EnumerateFiles ()
+                    |> Seq.map (fun fileInfo -> fileInfo.Name, fileInfo)
+                    |> Map.ofSeq
+
+                """fileNamesToDelete"""
+                |> JsonSerializer.Deserialize
+                |> Array.sortBy (Array.sortBy (fun (fileName : string) -> fileName.ToLowerInvariant ()))
+                |> Array.iter (function
+                | [| |] -> ()
+                | [| fileName |] ->
+                    printfn "Deleting %s" fileName
+                    fileInfoMap |> Map.tryFind fileName |> deleteFile
+                | fileNames ->
+                    printfn "Which of these files do you want to keep:"
+                    Seq.iteri (printfn "\\t%2d: %s") fileNames
+                    let choice = printf "Choose: "; Console.ReadLine () |> Int32.Parse
+                    fileNames
+                    |> Seq.filter ((<>) (Array.get fileNames choice))
+                    |> Seq.iter (fun fileName ->
+                        printfn "Deleting %s" fileName
+                        fileInfoMap |> Map.tryFind fileName |> deleteFile
+                    )
+                )
+        `
+        .split(/\r?\n/)
+        .reduce((state, line) => {
+            if (state === undefined && line.trim() !== '') {
+                const [, leadingSpaces, trimmedLine] = line.match(/^(\s+)(.*)$/)
+                return {
+                    result: trimmedLine,
+                    indentation: leadingSpaces.length,
+                }
+            } else if (state !== undefined) {
+                return {
+                    ...state,
+                    result: `${state.result}\n${line.substr(state.indentation)}`,
+                }
+            }
+        }, undefined)
+        .result;
+
         $(() => {
             // Add a vertical splitter.
             Split(['#mainTreeContainer', '#contentContainer']);
@@ -57,6 +123,47 @@
                 selectMode: 1, // Single.
                 toggleEffect: false, // No animations.
             })
+
+            // Initialize all jQuery-UI buttons.
+            $('button').button();
+
+            // Clicking on this button generates an F# script to delete all duplicate
+            // files in the currently selected directory. It asks which to keep when there
+            // are multiple duplicates of the same file in the directory.
+            $('#removalScriptButton').click(event => {
+                event.preventDefault();
+                const node = $('#directoryButtons').data().node;
+                const duplicateMap = new Map(
+                    node.data.files.duplicate.map(duplicateFile =>
+                        [ duplicateFile.id, duplicateFile ]
+                    )
+                );
+                const fileNamesToDelete =
+                    node.data.files.duplicate.reduce(({ result, processedIds }, duplicate) => {
+                        if (!processedIds.has(duplicate.id)) {
+                            processedIds.add(duplicate.id);
+                            result.push([
+                                duplicate.name,
+                                ...duplicate.duplicateToIds.flatMap(duplicateToId => {
+                                    if (duplicateMap.has(duplicateToId)) {
+                                        processedIds.add(duplicateToId);
+                                        return [ duplicateMap.get(duplicateToId).name ];
+                                    } else {
+                                        return [];
+                                    }
+                                }),
+                            ]);
+                        }
+                        return { result, processedIds };
+                    }, { result: [], processedIds: new Set() })
+                    .result;
+                const scriptContent = 
+                    cleanupDirectoryScriptTemplate
+                    .replace('directoryInfoName', node.title)
+                    .replace('fileNamesToDelete', JSON.stringify(fileNamesToDelete));
+                // Save the file without a BOM, otherwise the shebang isn't recognized.
+                saveAs(new Blob([ scriptContent ], { type: 'text/plain; charset=utf-8' }), 'Delete.fsx', true);
+            });
 
             // Returns the directory path to the given tree node.
             const getNodePath = node => node.parent === null ? '' : `${getNodePath(node.parent)}/${node.title}`;
@@ -86,10 +193,12 @@
                 $('#directoryTitle').text(`Directory ${getNodePath(data.node)}`);
                 if (data.node.data.files === null) {
                     $('#directoryFileInfo').text(`This directory is clean but contains ${data.node.children.length} subdirectories with duplicates.`);
+                    $('#directoryButtons').hide();
                     $('#fileTree').hide();
                 } else {
                     const { duplicate, nonDuplicateNames } = data.node.data.files;
                     $('#directoryFileInfo').text(`This directory contains ${duplicate.length} duplicates and ${nonDuplicateNames.length} non-duplicates.`);
+                    $('#directoryButtons').data('node', data.node).show();
                     const newFileTreeSource = [{
                         key: ':duplicatedirectories:',
                         title: 'Directories Containing Duplicates',
@@ -149,7 +258,10 @@
         <div id="contentContainer">
             <h2 id="directoryTitle" style="margin-top: 0;">No folder selected</h2>
             <div id="directoryFileInfo"></div>
-            <div id="fileTree" style="display:none; margin-top: 1em;"></div>
+            <div id="directoryButtons" style="display: none; margin-top: 1em;">
+                <button id="removalScriptButton" class="ui-button ui-widget ui-corner-all">Create File Removal Script</button>
+            </div>
+            <div id="fileTree" style="display: none; margin-top: 1em;"></div>
         </div>
     </div>
 </body>
