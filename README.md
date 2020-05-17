@@ -27,7 +27,8 @@ a configuration example looks like this:
                 "DirectoryToProcess2"
             ],
             "removeTrash": true,
-            "removeEmptyFiles": true
+            "removeEmptyFiles": true,
+            "checkFileSizes": true
         }
     }
 }
@@ -58,6 +59,8 @@ The configuration options are:
     this profile.
   * **removeEmptyFiles:** Indicates whether to remove files that are completely empty as part of
     executing this profile.
+  * **checkFileSizes:** Indicates whether to compare the size of each file to the size stored in the
+    database to compute a new hash if necessary.
 
 To run the program, execute:
 

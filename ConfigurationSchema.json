@@ -46,7 +46,8 @@
                 "required": [
                     "rootDirectories",
                     "removeTrash",
-                    "removeEmptyFiles"
+                    "removeEmptyFiles",
+                    "checkFileSizes"
                 ],
                 "additionalProperties": false,
                 "properties": {
@@ -62,6 +63,10 @@
                     "removeEmptyFiles": {
                         "type": "boolean",
                         "description": "Remove files that are completely empty?"
+                    },
+                    "checkFileSizes": {
+                        "type": "boolean",
+                        "description": "Check if file sizes have changed and recompute hashes?"
                     }
                 }
             }

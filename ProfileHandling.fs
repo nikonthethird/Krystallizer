@@ -278,8 +278,9 @@ let private getFileInfosToHash (state : DirectoryHandlingState) = asyncSeq {
     )
     for fileInfo in state.FileInfos do
         try match! state.FileEntryNameMap |> Async.Map (Map.tryFind fileInfo.Name) with
-            | Some { Length = length } when length = fileInfo.Length ->
-                // The file in its current state is stored.
+            | Some { Length = length } when not state.Profile.CheckFileSizes || length = fileInfo.Length ->
+                // The file in its current state is stored or
+                // we do not check for file size changes.
                 do ()
             | Some { Id = id } ->
                 // The file is stored, but it is no longer current.

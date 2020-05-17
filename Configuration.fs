@@ -27,6 +27,10 @@ type [<Struct>] Profile = {
     RemoveTrash : bool
     /// Specifies whether this profile removes completely empty files.
     RemoveEmptyFiles : bool
+    /// Specifies whether a file sizes are checked to see if a hash
+    /// needs to be recomputed. The file size lookup can be quite
+    /// an expensive operation.
+    CheckFileSizes : bool
 }
 
 
