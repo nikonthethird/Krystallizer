@@ -207,12 +207,18 @@ let private removeTrashFromDirectory (state : DirectoryHandlingState) = async {
         state.RemoveRootParentPathFrom state.DirectoryInfo.FullName
     )
     for fileInfo in state.FileInfos do
-        if state.TrashRegex.IsMatch fileInfo.Name then
-            do logger.Information (
-                "Removing trash file at {path}",
+        try if state.TrashRegex.IsMatch fileInfo.Name then
+                do logger.Information (
+                    "Removing trash file at {path}",
+                    state.RemoveRootParentPathFrom fileInfo.FullName
+                )
+                do fileInfo.Delete ()
+        with ex ->
+            do logger.Debug (
+                ex,
+                "Could not check for trash file at {path}",
                 state.RemoveRootParentPathFrom fileInfo.FullName
             )
-            do fileInfo.Delete ()
 }
 
 
@@ -224,12 +230,18 @@ let private removeEmptyFilesFromDirectory (state : DirectoryHandlingState) = asy
         state.RemoveRootParentPathFrom state.DirectoryInfo.FullName
     )
     for fileInfo in state.FileInfos do
-        if fileInfo.Length = 0L then
-            do logger.Information (
-                "Removing empty file at {path}",
+        try if fileInfo.Length = 0L then
+                do logger.Information (
+                    "Removing empty file at {path}",
+                    state.RemoveRootParentPathFrom fileInfo.FullName
+                )
+                do fileInfo.Delete ()
+        with ex ->
+            do logger.Debug (
+                ex,
+                "Could not check for empty file at {path}",
                 state.RemoveRootParentPathFrom fileInfo.FullName
             )
-            do fileInfo.Delete ()
 }
 
 
