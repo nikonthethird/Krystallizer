@@ -75,6 +75,9 @@ let main arguments =
     | UnknownProfileException profileName ->
         printfn "Unknown profile %s" profileName
         3
+    | :? OperationCanceledException ->
+        Log.Information "Program cancelled"
+        0
     | ex ->
         Log.Fatal (ex, "Unhandled exception encountered")
         printfn "Program crashed, check log"
