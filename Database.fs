@@ -222,9 +222,10 @@ type DatabaseConnection private (connection : NpgsqlConnection) =
     /// Establish a connection to the database using the given
     /// connection string.
     static member EstablishConnection connectionString = async {
+        let! token = Async.CancellationToken
         do logger.Debug "Establishing a database connection"
         let connection = new NpgsqlConnection (connectionString)
-        do! connection.OpenAsync () |> Async.AwaitTask
+        do! connection.OpenAsync token |> Async.AwaitTask
         return new DatabaseConnection (connection)
     }
 
@@ -249,6 +250,7 @@ type DatabaseConnection private (connection : NpgsqlConnection) =
     /// Creates all tables and indexes in the database
     /// if they do not exist.
     member _.CreateDatabaseStructure () = async {
+        let! token = Async.CancellationToken
         let createStatements = [
             CreateDirectoryTableSql
             CreateFileTableSql
@@ -256,24 +258,25 @@ type DatabaseConnection private (connection : NpgsqlConnection) =
             CreateFileDirectoryIdIndexSql
             CreateFileHashIndexSql
         ]
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try for createStatement in createStatements do
                 use command = connection.CreateCommand ()
                 do command.CommandText <- createStatement
-                do! command.ExecuteNonQueryAsync () |> Async.AwaitTask |> Async.Ignore
+                do! command.ExecuteNonQueryAsync token |> Async.AwaitTask |> Async.Ignore
         finally semaphore.Release () |> ignore
     }
 
     /// Adds a new directory entry to the database. The id of the given directory
     /// entry is ignored and a new directory entry with the correct id is returned.
     member _.AddDirectory ({ ParentId = parentId; Name = name } as directoryEntry) = async {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- InsertDirectorySql
             do command.AddTypedOptionParameter (nameof parentId, parentId)
             do command.AddTypedParameter (nameof name, name)
-            use! reader = command.ExecuteReaderAsync () |> Async.AwaitTask
-            match! reader.ReadAsync () |> Async.AwaitTask with
+            use! reader = command.ExecuteReaderAsync token |> Async.AwaitTask
+            match! reader.ReadAsync token |> Async.AwaitTask with
             | true ->
                 return { directoryEntry with Id = reader.GetInt32 0 }
             | false ->
@@ -285,12 +288,13 @@ type DatabaseConnection private (connection : NpgsqlConnection) =
     /// Returns a directory entry with the given id. If the directory entry does
     /// not exist, an exception is raised.
     member this.GetDirectoryById id = async {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- SelectDirectoryByIdSql
             do command.AddTypedParameter<int32> (nameof id, id)
-            use! reader = command.ExecuteReaderAsync () |> Async.AwaitTask
-            match! reader.ReadAsync () |> Async.AwaitTask with
+            use! reader = command.ExecuteReaderAsync token |> Async.AwaitTask
+            match! reader.ReadAsync token |> Async.AwaitTask with
             | true ->
                 return this.ReadDirectory reader
             | false ->
@@ -302,13 +306,14 @@ type DatabaseConnection private (connection : NpgsqlConnection) =
     /// Returns a directory entry with the given parent directory id and name.
     /// If the directory entry does not exist, none is returned.
     member this.TryGetDirectoryByParentIdAndName (parentId, name) = async {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- SelectDirectoryByParentIdAndNameSql
             do command.AddTypedOptionParameter<int32> (nameof parentId, parentId)
             do command.AddTypedParameter<string> (nameof name, name)
-            use! reader = command.ExecuteReaderAsync () |> Async.AwaitTask
-            match! reader.ReadAsync () |> Async.AwaitTask with
+            use! reader = command.ExecuteReaderAsync token |> Async.AwaitTask
+            match! reader.ReadAsync token |> Async.AwaitTask with
             | true ->
                 return this.ReadDirectory reader |> ValueSome
             | false ->
@@ -329,38 +334,41 @@ type DatabaseConnection private (connection : NpgsqlConnection) =
 
     /// Returns all subdirectory entries of the given parent directory id.
     member this.GetDirectoriesByParentId parentId = asyncSeq {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- SelectDirectoriesByParentIdSql
             do command.AddTypedOptionParameter<int32> (nameof parentId, parentId)
-            use! reader = command.ExecuteReaderAsync () |> Async.AwaitTask
-            while reader.ReadAsync () |> Async.AwaitTask do
+            use! reader = command.ExecuteReaderAsync token |> Async.AwaitTask
+            while reader.ReadAsync token |> Async.AwaitTask do
                 yield this.ReadDirectory reader
         finally semaphore.Release () |> ignore
     }
 
     /// Removes the directory entry with the given id.
     member _.RemoveDirectory id = async {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- DeleteDirectorySql
             do command.AddTypedParameter<int32> (nameof id, id)
-            do! command.ExecuteNonQueryAsync () |> Async.AwaitTask |> Async.Ignore
+            do! command.ExecuteNonQueryAsync token |> Async.AwaitTask |> Async.Ignore
         finally semaphore.Release () |> ignore
     }
 
     /// Adds a new file entry to the database. The id of the given file
     /// entry is ignored and a new file entry with the correct id is returned.
     member _.AddFile ({ DirectoryId = directoryId; Name = name; Length = length; Hash = hash } as fileEntry) = async {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- InsertFileSql
             do command.AddTypedParameter (nameof directoryId, directoryId)
             do command.AddTypedParameter (nameof name, name)
             do command.AddTypedParameter (nameof length, length)
             do command.AddTypedParameter (nameof hash, hash)
-            use! reader = command.ExecuteReaderAsync () |> Async.AwaitTask
-            match! reader.ReadAsync () |> Async.AwaitTask with
+            use! reader = command.ExecuteReaderAsync token |> Async.AwaitTask
+            match! reader.ReadAsync token |> Async.AwaitTask with
             | true ->
                 return { fileEntry with Id = reader.GetInt32 0 }
             | false ->
@@ -372,12 +380,13 @@ type DatabaseConnection private (connection : NpgsqlConnection) =
     /// Returns a file entry with the given id. If the file entry does
     /// not exist, an exception is raised.
     member this.GetFileById id = async {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- SelectFileByIdSql
             do command.AddTypedParameter<int32> (nameof id, id)
-            use! reader = command.ExecuteReaderAsync () |> Async.AwaitTask
-            match! reader.ReadAsync () |> Async.AwaitTask with
+            use! reader = command.ExecuteReaderAsync token |> Async.AwaitTask
+            match! reader.ReadAsync token |> Async.AwaitTask with
             | true ->
                 return this.ReadFile reader
             | false ->
@@ -388,34 +397,37 @@ type DatabaseConnection private (connection : NpgsqlConnection) =
 
     /// Returns all file entries that are in the given directory id.
     member this.GetFilesByDirectoryId directoryId = asyncSeq {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- SelectFilesByDirectoryIdSql
             do command.AddTypedParameter<int32> (nameof directoryId, directoryId)
-            use! reader = command.ExecuteReaderAsync () |> Async.AwaitTask
-            while reader.ReadAsync () |> Async.AwaitTask do
+            use! reader = command.ExecuteReaderAsync token |> Async.AwaitTask
+            while reader.ReadAsync token |> Async.AwaitTask do
                 yield this.ReadFile reader
         finally semaphore.Release () |> ignore
     }
 
     /// Returns all file entries that have duplicate hashes.
     member this.GetDuplicateFiles () = asyncSeq {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- SelectDuplicateFilesSql
-            use! reader = command.ExecuteReaderAsync () |> Async.AwaitTask
-            while reader.ReadAsync () |> Async.AwaitTask do
+            use! reader = command.ExecuteReaderAsync token |> Async.AwaitTask
+            while reader.ReadAsync token |> Async.AwaitTask do
                 yield this.ReadFile reader
         finally semaphore.Release () |> ignore
     }
 
     /// Removes the file entry with the given id.
     member _.RemoveFile id = async {
-        do! semaphore.WaitAsync () |> Async.AwaitTask
+        let! token = Async.CancellationToken
+        do! semaphore.WaitAsync token |> Async.AwaitTask
         try use command = connection.CreateCommand ()
             do command.CommandText <- DeleteFileSql
             do command.AddTypedParameter<int32> (nameof id, id)
-            do! command.ExecuteNonQueryAsync () |> Async.AwaitTask |> Async.Ignore
+            do! command.ExecuteNonQueryAsync token |> Async.AwaitTask |> Async.Ignore
         finally semaphore.Release () |> ignore
     }
 

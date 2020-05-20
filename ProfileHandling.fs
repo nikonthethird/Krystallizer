@@ -162,9 +162,12 @@ type private DirectoryHandlingState private (configuration, database, profile, t
 
 /// Computes the SHA1 hash of the given file info and returns it.
 let private computeHash (fileInfo : FileInfo) = async {
+    let! token = Async.CancellationToken
     try use fileStream = fileInfo.OpenRead ()
         use algorithm = SHA1.Create ()    
-        return! algorithm.ComputeHashAsync fileStream |> Async.AwaitTask |> Async.Map ValueSome
+        return! algorithm.ComputeHashAsync (fileStream, token)
+        |> Async.AwaitTask
+        |> Async.Map ValueSome
     with :? FileNotFoundException ->
         // The file no longer exists, no hash could be computed.
         return ValueNone

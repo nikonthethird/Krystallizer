@@ -57,8 +57,10 @@ type [<Struct>] Configuration = {
 /// Reads and parses the configuration file at the given path.
 /// If it does not exist, a MissingConfigurationFileException is raised.
 let readConfigurationFile path = async {
+    let! token = Async.CancellationToken
     try use fileStream = File.OpenRead path
-        return! JsonSerializer.DeserializeAsync<Configuration> (fileStream, jsonSerializerOptions) |> Async.AwaitValueTask
+        return! JsonSerializer.DeserializeAsync<Configuration> (fileStream, jsonSerializerOptions, token)
+        |> Async.AwaitValueTask
     with :? FileNotFoundException ->
         do Log.Error ("Could not find configuration file at {path}", path)
         return raise (MissingConfigurationFileException path)

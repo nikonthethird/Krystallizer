@@ -11,7 +11,9 @@ open NikonTheThird.Krystallizer.OutputGeneration
 open NikonTheThird.Krystallizer.ProfileHandling
 open Serilog
 open Serilog.Events
+open System
 open System.IO
+open System.Threading
 
 
 /// Sets up the Serilog logging framework.
@@ -47,13 +49,25 @@ let private mainTask arguments = async {
 }
 
 
+/// Returns a cancellation token source that will be cancelled when
+/// the user hits Ctrl+C on the terminal.
+let createCancellationTokenSource () =
+    let cts = new CancellationTokenSource ()
+    Console.CancelKeyPress
+    |> Event.add (fun e ->
+        Log.Information "Cancelling the operation"
+        e.Cancel <- true
+        cts.Cancel ()
+    )
+    cts
+
+
 /// Entry point of the program.
 /// Starts the main asynchronous task and prints errors that occur.
 [<EntryPoint>]
 let main arguments =
-    try arguments
-        |> mainTask
-        |> Async.RunSynchronously
+    let cts = createCancellationTokenSource ()
+    try Async.RunSynchronously (mainTask arguments, cancellationToken = cts.Token)
     with
     | MissingConfigurationFileException path ->
         printfn "Place JSON configuration file at %s." path
